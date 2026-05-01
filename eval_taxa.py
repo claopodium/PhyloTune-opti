@@ -49,8 +49,15 @@ def main(args):
         # load dataset
         print(f'############# Loading {args.dataset} #############')
         
-        id_test_dataset = torch.load(os.path.join(data_path, "id_test_dataset.pt"))
-        ood_test_dataset = torch.load(os.path.join(data_path, "ood_test_dataset.pt"))
+        load_kwargs = {'map_location': device, 'weights_only': False}
+        try:
+            with torch.serialization.safe_globals([SequenceDatasetMultiRank]):
+                id_test_dataset = torch.load(os.path.join(data_path, "id_test_dataset.pt"), **load_kwargs)
+                ood_test_dataset = torch.load(os.path.join(data_path, "ood_test_dataset.pt"), **load_kwargs)
+        except AttributeError:
+            id_test_dataset = torch.load(os.path.join(data_path, "id_test_dataset.pt"), **load_kwargs)
+            ood_test_dataset = torch.load(os.path.join(data_path, "ood_test_dataset.pt"), **load_kwargs)
+        
         assert id_test_dataset.labels_maps == ood_test_dataset.labels_maps, f'The labels_map in ID test set and OOD test set are inconsistent. Please check.'
         
         id_test_data_loader = DataLoader(id_test_dataset, batch_size=args.batch_size, shuffle=False)
