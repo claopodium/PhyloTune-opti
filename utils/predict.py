@@ -78,7 +78,7 @@ def pred_for_seqs(model, input):
     return outputs
 
 
-def get_attention(model, inputs, device, batch_size=32):
+def get_attention(model, inputs, device, batch_size=16):
     if isinstance(model, tuple):
         bert, probe = model
         bert.eval()
@@ -104,10 +104,13 @@ def get_attention(model, inputs, device, batch_size=32):
                     output_attentions=True,
                 )
                 
-                layer = probe.layer_num - 1
+                attentions = outputs['attentions']
+                if len(attentions) == 0:
+                    raise RuntimeError('No attentions returned from BERT. Check model configuration and attention implementation.')
+                layer = min(probe.layer_num - 1, len(attentions) - 1)
                 
                 # batch_size * head * seq_len * seq_len
-                attention = outputs['attentions'][layer].detach().cpu()
+                attention = attentions[layer].detach().cpu()
                 # batch_size * seq_len
                 attn_score = attention[:,:,0,1:-1].sum(1)
                 
@@ -131,7 +134,7 @@ def get_attention(model, inputs, device, batch_size=32):
 
 
 def split_attn_segs(dataset, tokenizer, seqs, seq_ipt, scores, num_segs):
-    if dataset == 'PlantSeqs':
+    if dataset == 'Plant':
         avg_scores = torch.zeros((len(seqs), num_segs))
         for i in range(len(scores)):
             segment_length = sum(scores[i] != 0) // num_segs
@@ -173,7 +176,7 @@ def split_attn_segs(dataset, tokenizer, seqs, seq_ipt, scores, num_segs):
 def calculate_attention(dataset, model, tokenizer, device, seqs, seq_name_list=None, attention_file=None, num_segs=1):
     print(f"### Calculating attention .... ###")
     
-    if dataset == 'PlantSeqs':
+    if dataset == 'Plant':
         seq_kmers = []
         for seq in seqs:
             seq_kmers.append(seq2kmers(seq))
@@ -188,7 +191,7 @@ def calculate_attention(dataset, model, tokenizer, device, seqs, seq_name_list=N
             truncation=True
         )
         
-    scores = get_attention(model, seq_ipt, device, batch_size=32)
+    scores = get_attention(model, seq_ipt, device, batch_size=16)
     
     if num_segs > 1:
         avg_scores = split_attn_segs(dataset, tokenizer, seqs, seq_ipt, scores, num_segs)
@@ -196,7 +199,7 @@ def calculate_attention(dataset, model, tokenizer, device, seqs, seq_name_list=N
         return avg_scores
     else:
         
-        if dataset == 'PlantSeqs':
+        if dataset == 'Plant':
             attn_scores = scores.repeat(1, 3).reshape(scores.shape[0], 3, scores.shape[1]).permute(0, 2, 1).reshape(scores.shape[0], -1).to(torch.float64)
             
         elif dataset == 'bordetella':
