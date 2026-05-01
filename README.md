@@ -102,6 +102,14 @@ To fine-tune phyloTune on simulated datasets, use the following command:
   ```
   python simulated.py
   ```
+---
+(Original README is above)
+
+### What have I done
+
+Given that Pytorch have developed rapidly since the model is publshed, some programmes fail to run in the latest version. These mistakes are fixed. 
+
+Additionally, the segment and determination of high-attn region is relative rough in the original version. Kadane algorithm is introduced to figure a fine-grained boundary of it.
 
 
 
