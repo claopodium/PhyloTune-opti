@@ -179,7 +179,7 @@ def main(args):
         tokenizer = BertTokenizer.from_pretrained(bert_path, do_lower_case=False)
         
         # load model
-        bert = BertModel.from_pretrained(bert_path)
+        bert = BertModel.from_pretrained(bert_path, attn_implementation='eager')
         bert.to(device)
         hlp_config_dict = {'device': device, 
                            'default_dtype': bert.dtype,
