@@ -63,6 +63,8 @@ def compute_metrics_details(eval_pred):
 Manually calculate the auroc, aupr with sklearn.
 """
 def calculate_ood_metric_with_sklearn(scores: np.ndarray, labels: np.ndarray, name="max_p"):
+    scores = scores.detach().cpu().numpy() if isinstance(scores, torch.Tensor) else np.asarray(scores)
+    labels = labels.detach().cpu().numpy() if isinstance(labels, torch.Tensor) else np.asarray(labels)
     # return the metric for ood detection
     return {
         f'auroc-{name}': sklearn.metrics.roc_auc_score(labels, scores),
@@ -74,10 +76,12 @@ def calculate_ood_metric_with_sklearn(scores: np.ndarray, labels: np.ndarray, na
 Manually calculate the accuracy, matthews_correlation, f1, precision, recall with sklearn.
 """
 def calculate_metric_with_sklearn(predictions: np.ndarray, labels: np.ndarray, average: str = "macro", zero_division=0):
+    predictions = predictions.detach().cpu().numpy() if isinstance(predictions, torch.Tensor) else np.asarray(predictions)
+    labels = labels.detach().cpu().numpy() if isinstance(labels, torch.Tensor) else np.asarray(labels)
     valid_mask = labels != -100  # Exclude padding tokens (assuming -100 is the padding token ID)
     valid_predictions = predictions[valid_mask]
     valid_labels = labels[valid_mask]
-    assert all(valid_labels >= 0), "Labels contain padding tokens."
+    assert np.all(valid_labels >= 0), "Labels contain padding tokens."
     return {
         "accuracy": sklearn.metrics.accuracy_score(valid_labels, valid_predictions),
         "matthews_correlation": sklearn.metrics.matthews_corrcoef(
