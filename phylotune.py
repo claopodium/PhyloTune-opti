@@ -111,6 +111,32 @@ def aggregate_tax_units(tax_ranks, tax_units, taxo_structure):
     
     return final_tax_units, new_seqs_ids
 
+def Kadane_algorithm(scores):
+    th = np.mean(scores)
+    scores = scores - th
+    if np.all(scores < 0):
+        best_point = np.argmax(scores)
+        return best_point, best_point
+    
+    max_so_far = -float('inf')
+
+    current_max = 0
+    start = 0
+    end = 0
+    tmp_start = 0
+    for i in range(len(scores)):
+        current_max += scores[i]
+
+        if max_so_far < current_max:
+            max_so_far = current_max
+            start = tmp_start
+            end = i
+
+        if current_max < 0:
+            current_max = 0
+            tmp_start = i + 1
+    return start, end
+
 
 def extract_high_attention_regions(args, device, model, tokenizer, original_seqs_set, final_tax_units, new_seqs_ids):        
     for key, tax_unit in final_tax_units.items():
@@ -134,51 +160,44 @@ def extract_high_attention_regions(args, device, model, tokenizer, original_seqs
         print(f'# Number of sequences: {len(seqs)}')
         avg_scores = calculate_attention(args.dataset, model, tokenizer, device, seqs, num_segs=args.num_segs)
     
-        # small -> large    
-        sorted_idx = torch.argsort(torch.mean(avg_scores, dim=0))
-        # large -> small
-        sorted_idx = sorted_idx.flip(0)
-        selected_idx = sorted_idx[:args.k]
+        mean_attention_profile = torch.mean(avg_scores, dim=0).cpu().numpy()
+        print(mean_attention_profile)
         
-        print(f'###### Sequence is divided into {args.num_segs} equal segments ######')
-        if args.k == 1:
-            print(f'# Area of ​​highest attention: {(selected_idx + 1).tolist()} ######')
-        else:
-            print(f'# Areas of top {args.k} highest attention: {(selected_idx + 1).tolist()} ######')
+        start_seg_idx, end_seg_idx = Kadane_algorithm(mean_attention_profile)
+        
+        print(f'###### Kadane Optimized: Found high-attention range between segment {start_seg_idx} and {end_seg_idx} ######')
+        print(f'namely {len(seqs[0]) // args.num_segs * start_seg_idx} to {len(seqs[0]) // args.num_segs * end_seg_idx}')
         
         print('-----------------------------')
-        
-        selected_idx = selected_idx.sort()[0].tolist()
-        os.makedirs(args.result_path, exist_ok=True)
-        with open(os.path.join(args.result_path, f'{tax_unit[1]}_{args.marker}_high_attn_{args.k}_{args.num_segs}.fasta'), 'w') as f:
-            for i in new_seqs_ids[key]:
-                seq = ''
-                for idx in selected_idx:
-                    seq += args.seqs[i][idx * len(args.seqs[i]) // args.num_segs : (idx + 1) * len(args.seqs[i]) // args.num_segs]
-                f.write(f'>{tax_unit[1]}_new\n{seq}\n')
-                
-            # read ech row for seqs_info (pandas)
-            for row in seqs_info.iterrows():
-                seq = ''
-                for idx in selected_idx:
-                    seq += row[1]['seq'][idx * len(row[1]['seq']) // args.num_segs : (idx + 1) * len(row[1]['seq']) // args.num_segs]
-                # seq = row[1]['seq']
-                # seq = seq[max_idx * len(seq) // args.num_segs : (max_idx + 1) * len(seq) // args.num_segs]
-                
-                if args.dataset == 'Plant':
-                    name = row[1][tax_unit[0]]
-                    species = row[1]['species']                
-                    taxid = row[1]['taxid']
-                    
-                    f.write(f'>{name}_{species}_{taxid}\n{seq}\n')
-                elif args.dataset == 'Bordetella':
-                    species = row[1]['species']
-                    individual = row[1]['individual']
-                    f.write(f'>{species}_{individual}\n{seq}\n')
-                
-                else:
-                    raise ValueError('Please check the dataset name.')
 
+        os.makedirs(args.result_path, exist_ok=True)
+        filename = f'{tax_unit[1]}_{args.marker}_kadane_optimized.fasta'
+        with open(os.path.join(args.result_path, filename), 'w') as f:
+            for i in new_seqs_ids[key]:
+                full_seq = args.seqs[i]
+                s_pos = start_seg_idx * len(full_seq) // args.num_segs
+                e_pos = (end_seg_idx + 1) * len(full_seq) // args.num_segs
+                extracted_sub_seq = full_seq[s_pos:e_pos] 
+                f.write(f'>{tax_unit[1]}_new\n{extracted_sub_seq}\n')
+            
+            for _, row in seqs_info.iterrows():
+                ref_seq = row['seq']
+                s_pos = start_seg_idx * len(ref_seq) // args.num_segs
+                e_pos = (end_seg_idx + 1) * len(ref_seq) // args.num_segs
+                extracted_sub_seq = ref_seq[s_pos:e_pos] 
+
+                if args.dataset == 'Plant':
+                    name = row[tax_unit[0]]
+                    species = row['species']                
+                    taxid = row['taxid']
+                    
+                    f.write(f'>{name}_{species}_{taxid}\n{extracted_sub_seq}\n')
+                elif args.dataset == 'Bordetella':
+                    species = row['species']
+                    individual = row['individual']
+                    f.write(f'>{species}_{individual}\n{extracted_sub_seq}\n')
+                else:
+                    raise ValueError('Unknown dataset.')
 
 def main(args):
     set_seed(0)
@@ -230,7 +249,7 @@ def main(args):
         # load model
         print(f'# Loading BERTPhylo .... ')
         ## load BERT module
-        bert = BertModel.from_pretrained(bert_path)
+        bert = BertModel.from_pretrained(bert_path, attn_implementation='eager')
         bert.to(device)
         
         ## load hierarchical linear probes
@@ -286,6 +305,7 @@ def main(args):
             cache_dir=None,
             trust_remote_code=True,
             labels_maps=labels_maps,
+            attn_implementation='eager',
         ).to(device)
 
         taxo_structure = original_seqs_set[tax_ranks].drop_duplicates()
