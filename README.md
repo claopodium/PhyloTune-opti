@@ -18,82 +18,144 @@
 
 ## 🛠️ System Requirements
 
-We here discuss hardware and software system requirements.
+### Hardware
 
-### Hardware Dependencies
+A GPU is recommended for model inference. CPU-only execution is supported but may be slow.
 
-Our experiments require modern computer hardware suitable for machine learning research. We recommend using one or more graphics processor units (GPUs) to accelerate model inference. Without a GPU, it may be difficult to reproduce our results in a reasonable amount of time.
+### Software
 
-
-### Software Dependencies
-
-Our code relies on Python 3.11.9 with PyTorch 2.5.1. We list the exact versions for all packages in [environment.yml](environment.yml).
-
-
-## 📑 Installation Guide
-
-To install Python with all necessary dependencies, we recommend the use of conda, and we refer to [https://conda.io/](https://conda.io/) for an installation guide. After installing conda, please execute the following commands to download the code and set up a new conda environment with all required packages:
+- Python 3.10+ 
+- PyTorch 2.x
+- Full dependency list: [environment.yml](environment.yml) (conda) or [requirements.txt](requirements.txt) (pip)
 
 
-```
-git clone --recursive https://github.com/danruod/PhyloTune.git
+## 📑 Installation
+
+```bash
+git clone https://github.com/danruod/PhyloTune.git
 cd PhyloTune/
-  
+
+# Option A: conda (recommended)
 conda env create -f environment.yml
-conda activate PhyloTune
+conda activate phylo
+
+# Option B: pip
+pip install -r requirements.txt
 ```
 
-We recommend running on a Linux system. The setup should be completed within a few minutes. 
+### Download Data & Models
 
-Before running the code, you need to manually download the datasets and model parameters.
+The repository only contains source code. You must download datasets and model checkpoints separately:
 
-* The dataset needs to be [downloaded](https://drive.google.com/drive/folders/1NwwAJog1_i_2X_sZKdQPaNeA0UnhPcj2) manually and stored in the datasets folder under the PhyloTune directory (`./datasets/`). This folder contains the **Plant**, ***Bordetella***, and **Simulated** datasets. Alternatively, you can directly download the zip files in the datasets directory and unzip them.
+| Resource | Link | Target Directory |
+|---|---|---|
+| Datasets (Plant, Bordetella, Simulated) | [Google Drive](https://drive.google.com/drive/folders/1NwwAJog1_i_2X_sZKdQPaNeA0UnhPcj2) | `./datasets/` |
+| Model checkpoints (Plant_dnabert, Bordetella_dnaberts) | [Google Drive](https://drive.google.com/drive/folders/1QdMSYhDdUKIyxPNlROSnZUkV45E7UmrK) | `./checkpoints/` |
 
-* The model parameters of PhyloTune need to be [downloaded](https://drive.google.com/drive/folders/1QdMSYhDdUKIyxPNlROSnZUkV45E7UmrK) manually and stored in the checkpoints folder under the PhyloTune directory (`./checkpoints/`). There are two folders in total:
+**Expected directory structure after download:**
 
-  * plant_dnabert: Model parameters obtained by fine-tuning the **Plant** dataset using DNABERT as the backbone.
+```
+PhyloTune/
+├── main.py
+├── phylotune.py
+├── eval_taxa.py
+├── attn_analysis.py
+├── simulated.py
+├── model/          # Model architecture
+├── utils/          # Utility functions
+├── analysis/       # Population genetics metrics
+├── datasets/       # <-- Downloaded
+│   ├── Plant/
+│   │   ├── 1_train_test/
+│   │   └── 2_attn_analysis/
+│   ├── Bordetella/
+│   └── simulated/
+├── checkpoints/    # <-- Downloaded
+│   ├── Plant_dnabert/
+│   │   ├── bert/       (config.json, pytorch_model.bin, vocab.txt)
+│   │   └── hlps.pt
+│   └── Bordetella_dnaberts/
+└── results/        # <-- Generated at runtime
+```
 
-  * bordetella_dnaberts: Model parameters obtained by fine-tuning the ***Bordetella*** dataset using DNABERT-S as the backbone.
-
-Note: For simulated datsets, we used DNABERT-S to fine-tune the HLPs designed for these dataset. 
+> **Note for Google Drive downloads:**  Large folders may be split into multiple zip files (e.g., `Plant-xxx-001.zip`, `Plant-xxx-002.zip`). Extract both and merge the `Plant/` subdirectories into `./datasets/Plant/`.
 
 
-## 🚀 Quick-starter code
+## 🚀 Quick Start
 
-### Demo for PhyloTune
+### PhyloTune: Identify taxonomy & extract high-attention regions
 
-The following code provides a demo of how PhyloTune, trained on the **Plant** dataset, works in practice:
+```bash
+python main.py PhyloTune \
+  --dataset Plant \
+  --seqs "<DNA_SEQUENCE_1>" "<DNA_SEQUENCE_2>" \
+  --marker its \
+  --num_segs 3 \
+  --k 1
+```
 
-  ```
-  python main.py PhyloTune --dataset Plant --seqs "TAGAGGAAGGGAGAAGTCGTAACAAGGTTTCCGTAGGTGAACCTGCGGAAGGATCATTGTCGTGACCCTGACCAAAACAGACCGCGCACGCGTCATCCTGCCCGCCGGGCGGCGGCACCGTCTGTCGCCCAGCCAAAGTCCTCGAWAACCTCCTCTCTTCGGAGGGGCGGCTCGGGGTAAAAGAACCCACGGCGCCGAAGGCGTCAAGGAACACTGTGCCTAACCCGGGGACGCGGCTGGCTTGCTRGCCGCACCTTGGGTTGCAATGCTATATAATCCACACGACTCTCGGCAACGGATATCTCGGCTCTCGCATCGATGAAGAACGTAGCGAAATGCGATACCTGGTGTGAATTGCAGAATCCCGCGAACCATCGAGTCTTTGAACGCAAGTTGCGCCCGAGGCCTTCTGGCCGAGGGCACGCCTGCCTGGGCGTCACGCCAAACACGCTCCCACCCCACTAAACATGGGGCGGGATGCGGCATGTGGCTCTCCRTCTCGCAAGGGGCGGTGGGCCGAAGATCCGGCTGCCGGCGTATCGTKCCGGACACAGCGCGTGGTAGGCGATCTCGCTATACTAAACGCAGTGCATCCGGGACGTAGCCGACGCAATGCCCTCAATGGACCCTATTAACGGAGCGCACGACGTTTCGACCGCGACCCCAGGTCAGGCGGGACTACCCGCTGAATTTAAGCATATCAATAAGCGGAGGA" "TTAATACCATACCCCCTCCATCTGGAAATTTTGGTTCAAATTATTCGCTATTGGGTGAAAGATGCCTCTTCGTTGCATTTATTACGGTTTTTTCTTCACGAGTATTGTAATTGGAATAGTCTTATTACTCCAAATAAATTGATTTCTTTTTTTTCAAAAGAAAATCGAAGATTATTCTTGTTCCTATATAATTCTCATGTATGTGAATACGAATCTATTTTACTTTTTCTCCGTAACCAATCTTCTCATTTACGGTTAACATCTTATAGGTTTTTTTTTGAGCGAGTATATTTTTATGGAAAAATAGAACATCTTGTAAAAGTATTTGCTAATTATTTTCGGGCTATCCTACGGGTCTTCAAGCATCCTTTTATACATTATGTTAGATATCAAGGAAAAGCAATTCTGGTTTCAAAAGATACGCCTCTTCTGATGAATAAGTGGAAATATTACCTTGTCCATTTATGGCAATGTTATTTTTATGTGTGGTCACAACCAGAGAGGATCTATATAAACCAATTATCCAAGCGTTCTCTTGCCTTTTTGGGCTATATTTCAAGTGTGCGACTAAATCCTTCAGTGGTACGGAGTCAAATGCTAGAAAATGAATTTCTAATGGATAATGGTATGAAGAAACTCGATACACTAGTTCCAATTATGAAACTGCTTGTATCATTGGCTAAAGCTAAATTTTGTAACGTATTAGGGCATCCCATTAGTAAGCCGACCTGGGCGGATTCGTCAGATTTTGATATTATCGATCGATTTTTGCGTATATGCAGAAATCTTTCTCATTATTACAGTGG" --marker its --num_segs 3 --k 1 
-  ```
+**Parameters:**
 
-Given one or more new sequences from a specific marker, this code performs the following tasks:
+| Parameter | Default | Description |
+|---|---|---|
+| `--dataset` | (required) | `Plant` or `Bordetella` |
+| `--seqs` | (required) | One or more new DNA sequences |
+| `--marker` | (required) | Molecular marker (e.g., `its`, `rbcl`, `matk`, `trn`) |
+| `--num_segs` | 3 | Granularity for attention scanning. Small = coarse segments. Large (~seq length) = single-base resolution. |
+| `--k` | 1 | Number of non-overlapping high-attention regions to extract (top-k). |
+| `--threshold` | 0.1 | Novelty score threshold for taxonomic classification. |
 
-👉 1.   Identify the **smallest taxonomic unit**:
+**How it works:**
 
-*   Determine the smallest clade in the phylogenetic tree to which the new sequence(s) belong.
-*   Combine clades with overlapping regions to simplify downstream analysis.
+1. **Taxonomic classification** — Determines the smallest clade the new sequence belongs to using hierarchical linear probes.
+2. **Attention computation** — Computes per-base attention scores from DNABERT across all reference + new sequences.
+3. **Kadane top-k extraction** — Uses Kadane's algorithm to find the contiguous region with maximum mean attention, extracts it, masks that region, and repeats `k` times to find multiple non-overlapping high-signal regions.
+4. **Output** — FASTA files with extracted sub-sequences per taxonomic unit, written to `./results/{dataset}/bertphylo/`.
 
-👉 2.   Extract **high-attention regions**: Extract and output the high-attention regions from the merged clades' sequences. The sequences are divided into --num_segs segments, and high-attention regions are identified as the top --k average attention regions.
+### Kadane Top-k Algorithm
 
-These extracted high-attention regions can then be used with existing tools like MAFFT (for sequence alignment) and RAxML (for tree inference) to efficiently update the topology of the corresponding subtree. We also provide a [Colab](https://colab.research.google.com/drive/1l2EdbAehS79a5GSy4PyGoVZv-nwjJ4Lt) for your reference.
+PhyloTune uses **Kadane's maximum subarray algorithm** to identify the most informative contiguous regions of DNA sequences, replacing the original fixed-segment averaging approach.
 
-### Reproduce Results for PhyloTune
+**Why Kadane?**  DNA attention signals from BERT are inherently continuous — adjacent bases that contribute jointly to the model's classification decision form natural "hotspot" regions. Kadane finds the exact boundaries of these regions rather than relying on arbitrary fixed-width segments.
 
-To reproduce the evaluation results for the smallest taxonomic unit in the paper, use the following command:
+**Algorithm details:**
 
-  ```
-  python main.py eval_taxa --dataset Plant --batch_size 16
-  ```
+1. Compute **per-base attention scores** by expanding k-mer token attention to single-nucleotide resolution.
+2. Subtract the mean attention to center the signal (below-average regions become negative).
+3. Run Kadane's algorithm to find the contiguous subarray with maximum sum — the optimal high-attention region.
+4. **Top-k extension**: After extracting the best region, mask it with a low finite value and re-run Kadane. Repeat `k` times to obtain `k` non-overlapping regions.
 
-To reproduce the attention analysis evaluation results from the article, use this command:
+```
+Input: mean attention profile [0.3, 0.5, 0.8, 0.4, 0.1, 0.2, ...]
+       ↓ subtract mean, Kadane scan
+Pass 1: region [2, 128]  (best contiguous high-attention)
+       ↓ mask positions 2..128
+Pass 2: region [200, 350] (next best, non-overlapping)
+       ↓ mask positions 200..350  
+Pass 3: region [400, 450] ...
+```
 
-  ```
-  python main.py  attn_analysis --dataset Plant --metrics hetero sub_rate fst dxy
-  ```
+**Granularity control (`--num_segs`):**
 
-If you wish to use the bordetella dataset instead, simply specify --dataset Bordetella.
+| `--num_segs` | Behavior | Use case |
+|---|---|---|
+| 3–10 | Coarse fixed-width segments | Fast scan, identify broad regions |
+| ~sequence length (e.g., 500) | **Single-base resolution** | Precise boundary detection |
+| > sequence length | Auto-degrades to single-base | Safe, no NaN errors |
+
+When `num_segs >= sequence length`, the algorithm automatically falls back to per-base attention, avoiding the zero-length segment division that caused NaN errors in earlier versions.
+
+### Reproduce Paper Results
+
+```bash
+# Taxonomic unit evaluation
+python main.py eval_taxa --dataset Plant --batch_size 16
+
+# Attention analysis evaluation
+python main.py attn_analysis --dataset Plant --metrics hetero sub_rate fst dxy
+```
+
+Use `--dataset Bordetella` for the microbial dataset.
 
 ### Fine-tuning on Simulated Datasets
 
@@ -102,14 +164,6 @@ To fine-tune phyloTune on simulated datasets, use the following command:
   ```
   python simulated.py
   ```
----
-(Original README is above)
-
-### What have I done
-
-Given that Pytorch have developed rapidly since the model is publshed, some programmes fail to run in the latest version. These mistakes are fixed. 
-
-Additionally, the segment and determination of high-attn region is relative rough in the original version. Kadane algorithm is introduced to figure a fine-grained boundary of it.
 
 
 

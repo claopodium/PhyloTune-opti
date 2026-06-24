@@ -137,10 +137,14 @@ def split_attn_segs(dataset, tokenizer, seqs, seq_ipt, scores, num_segs):
     if dataset == 'Plant':
         avg_scores = torch.zeros((len(seqs), num_segs))
         for i in range(len(scores)):
-            segment_length = sum(scores[i] != 0) // num_segs
-            for j in range(num_segs):
+            num_tokens = int((scores[i] != 0).sum().item())
+            if num_tokens == 0:
+                continue
+            effective_segs = min(num_segs, num_tokens)
+            segment_length = num_tokens // effective_segs
+            for j in range(effective_segs):
                 start = j * segment_length
-                end = start + segment_length
+                end = start + segment_length if j < effective_segs - 1 else num_tokens
                 avg_scores[i, j] = torch.mean(scores[i, start:end])
     elif dataset == 'bordetella':
         assert seq_ipt['input_ids'].shape == scores.shape, f'{seq_ipt["input_ids"].shape} != {scores.shape}'
@@ -162,10 +166,11 @@ def split_attn_segs(dataset, tokenizer, seqs, seq_ipt, scores, num_segs):
                 
             assert len(attn_scores) == len(seqs[i]), f'{len(attn_scores)} != {len(seqs[i])}'
                 
-            segment_length = len(attn_scores) // num_segs
-            for s in range(num_segs):
+            effective_segs = min(num_segs, len(attn_scores))
+            segment_length = len(attn_scores) // effective_segs
+            for s in range(effective_segs):
                 start = s * segment_length
-                end = start + segment_length
+                end = start + segment_length if s < effective_segs - 1 else len(attn_scores)
                 avg_scores[i, s] = np.mean(attn_scores[start:end])
     else:
         raise ValueError('Please check the dataset name.')
